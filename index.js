@@ -1,4 +1,4 @@
-var blockType = {
+const blockType = {
 	empty: 0,
 	wall: 1,
 	greenNode: 2,
@@ -6,7 +6,7 @@ var blockType = {
 	blueNode: 4
 };
 
-var colors = {
+const colors = {
 	red: 'rgb(255, 50, 0)',
 	green: 'rgb(150, 255, 0)',
 	blue: 'rgb(0, 150, 255)',
@@ -14,6 +14,11 @@ var colors = {
 	purple: 'rgb(255, 0, 200)',
 	dark: 'rgb(10, 20, 40)'
 };
+
+const heuristicType = {
+	manhattan: 0,
+	euclidian: 1
+}
 
 class Grid {
 	/*
@@ -43,6 +48,7 @@ class Grid {
 
 	loadGrid() {
 		let tiles = localStorage.getItem(this.saveName);
+		
 		try {
 			if (tiles) {
 				tiles = JSON.parse(tiles);
@@ -289,9 +295,12 @@ class AstarFinder {
 	calcHeuristic(current, targetCoords) {
 		let xDif = Math.abs(targetCoords.x - current.x);
 		let yDif = Math.abs(targetCoords.y - current.y);
-
-		return (xDif + yDif) * this.options.heuristicWeight;
-		//return Math.sqrt(xDif * xDif + yDif * yDif) * this.options.heuristicWeight;
+		
+		if (this.options.heuristicMode === heuristicType.euclidian) {
+			return Math.sqrt(xDif * xDif + yDif * yDif) * this.options.heuristicWeight;
+		} else { // Manhattan by default
+			return (xDif + yDif) * this.options.heuristicWeight;
+		}
 	}
 
 	showOpenList(openList) {
@@ -536,7 +545,7 @@ class AstarManager {
 		this.grid = new Grid(40, saveId, this.changeBlock.bind(this));
 		this.grid.initGrid();
 
-		this.controls = {
+		this.options = {
 			type: blockType.wall,
 			clear: () => {
 				this.grid.clearGrid();
@@ -546,16 +555,17 @@ class AstarManager {
 			find: this.find.bind(this),
 			useDiagonal: true,
 			heuristicWeight: 10,
+			heuristicMode: heuristicType.euclidian,
 			debugPathfinding: false,
 			showCoordinates: false
 		};
 	
 		this.convertor = new CoordConvertor(this.grid.gridSize, this.canvas);
-		this.finder = new AstarFinder(this.grid, this.controls);
+		this.finder = new AstarFinder(this.grid, this.options);
 		this.renderer = new AstarCanvas(this.convertor, this.ctx);
 	
-		this.ui = new UIEventsHandler(this.grid, this.convertor, this.changeBlock.bind(this));
-		this.ui.initEventHandlers(this.canvas);
+		this.uiHandler = new UIEventsHandler(this.grid, this.convertor, this.changeBlock.bind(this));
+		this.uiHandler.initEventHandlers(this.canvas);
 	
 		this.renderGrid();
 	}
@@ -575,19 +585,22 @@ class AstarManager {
 
 	initGUI(gui, folderName) {
 		let f = gui.addFolder(folderName);
-		f.add(this.controls, 'type', blockType).onChange((value) => {
-			this.ui.currentBlockType = typeof value === "string" ? parseInt(value) : value;
+		f.add(this.options, 'type', blockType).onChange((value) => {
+			this.uiHandler.currentBlockType = typeof value === "string" ? parseInt(value) : value;
 		});
-		f.add(this.controls, 'find');
-		// f.add(this.controls, 'clear');
+		f.add(this.options, 'find');
+		f.add(this.options, 'clear');
 
 		let p = f.addFolder("Pathfinding Options");
-		p.add(this.controls, 'useDiagonal');
-		p.add(this.controls, 'heuristicWeight');
+		p.add(this.options, 'useDiagonal');
+		p.add(this.options, 'heuristicWeight');
+		p.add(this.options, 'heuristicMode', heuristicType).onChange((value) => {
+			this.options.heuristicMode = typeof value === "string" ? parseInt(value) : value;
+		});
 
 		let d = f.addFolder("Debug Options");
-		d.add(this.controls, 'debugPathfinding');
-		d.add(this.controls, 'showCoordinates');
+		d.add(this.options, 'debugPathfinding');
+		d.add(this.options, 'showCoordinates');
 		f.open();
 	}
 
@@ -644,7 +657,7 @@ class AstarManager {
 				this.ctx.strokeRect(x * blkSz, y * blkSz, blkSz, blkSz);
 	
 				// Render text information
-				if (this.controls.showCoordinates) {
+				if (this.options.showCoordinates) {
 					this.ctx.font = "6px Arial";
 					this.ctx.fillStyle = "rgba(255, 255, 255, 127)";
 					this.ctx.fillText(x + "," + y, x * blkSz + blkSz * 0.1, y * blkSz + blkSz * 0.25 + 1);
