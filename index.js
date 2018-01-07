@@ -187,7 +187,7 @@ class Grid {
 
 		return list;
 	} //getNeighbors()
-} //Grid
+} //class Grid
 
 class OpenList {
 	/*
@@ -229,70 +229,18 @@ class OpenList {
 	equalCoords(a, b) {
 		return a.x === b.x && a.y === b.y;
 	}
-}
+} //class OpenList
 
-class Astar {
-	constructor(aGrid, aConvertor, aContext, options) {
-		this.grid = aGrid;
-		this.convertor = aConvertor;
-		this.ctx = aContext;
-		this.options = options;
-	}
-
-	calcHeuristic(current, targetCoords) {
-		let xDif = Math.abs(targetCoords.x - current.x);
-		let yDif = Math.abs(targetCoords.y - current.y);
-
-		return (xDif + yDif) * this.options.heuristicWeight;
-		//return Math.sqrt(xDif * xDif + yDif * yDif) * this.options.heuristicWeight;
-	}
-
-	drawOpenList(openList) {
-		openList.forEach((item) => {
-			let btype;
-
-			if (item.closed) {
-				btype = blockType.greenNode;
-			} else {
-				btype = blockType.redNode;
-			}
-			
-			this.grid.changeBlock(item, btype, false);
-		});
-	}
-
-	drawPath(pathList) {
-		let node = pathList[pathList.length - 1];
-		let prevNode = node.cameFrom;
-		let blkSize =  this.convertor.blockSize;
-
-		this.ctx.strokeStyle = colors.blue;
-		//this.ctx.setLineDash([6, 6]);
-		this.ctx.lineWidth = 3;
-		this.ctx.beginPath();
-
-		while (prevNode) {
-
-
-
-			this.ctx.moveTo(node.x * blkSize + blkSize / 2, node.y * blkSize + blkSize / 2);
-			this.ctx.lineTo(prevNode.x * blkSize + blkSize / 2, prevNode.y * blkSize + blkSize / 2);
-
-
-			node = prevNode;
-			prevNode = node.cameFrom;
-		}
-
-		this.ctx.stroke();
-		this.ctx.setLineDash([]);
- 
+class AstarCanvas {
+	constructor(convertor, context) {
+		this.convertor = convertor;
+		this.ctx = context;
 	}
 
 	drawEndpoints(startCoords, targetCoords) {
 		let blkSize =  this.convertor.blockSize;
 		let offset = blkSize * 0.5;
 		let radius = blkSize * 0.33;
-
 
 		this.ctx.lineWidth = 2;
 
@@ -309,6 +257,57 @@ class Astar {
 		this.ctx.fill();
 	}
 
+	drawPath(pathList) {
+		let node = pathList[pathList.length - 1];
+		let prevNode = node.cameFrom;
+		let blkSize =  this.convertor.blockSize;
+
+		this.ctx.strokeStyle = colors.blue;
+		//this.ctx.setLineDash([6, 6]);
+		this.ctx.lineWidth = 3;
+		this.ctx.beginPath();
+
+		while (prevNode) {
+			this.ctx.moveTo(node.x * blkSize + blkSize / 2, node.y * blkSize + blkSize / 2);
+			this.ctx.lineTo(prevNode.x * blkSize + blkSize / 2, prevNode.y * blkSize + blkSize / 2);
+
+			node = prevNode;
+			prevNode = node.cameFrom;
+		}
+
+		this.ctx.stroke();
+		this.ctx.setLineDash([]);
+	}
+}
+
+class AstarFinder {
+	constructor(aGrid, options) {
+		this.grid = aGrid;
+		this.options = options;
+	}
+
+	calcHeuristic(current, targetCoords) {
+		let xDif = Math.abs(targetCoords.x - current.x);
+		let yDif = Math.abs(targetCoords.y - current.y);
+
+		return (xDif + yDif) * this.options.heuristicWeight;
+		//return Math.sqrt(xDif * xDif + yDif * yDif) * this.options.heuristicWeight;
+	}
+
+	showOpenList(openList) {
+		openList.forEach((item) => {
+			let btype;
+
+			if (item.closed) {
+				btype = blockType.greenNode;
+			} else {
+				btype = blockType.redNode;
+			}
+			
+			this.grid.changeBlock(item, btype, false);
+		});
+	}
+
 	btypeOfNode(node) {
 		// Finds the equivalent tile in the grid and returns its btype
 		if (!node) {
@@ -318,54 +317,50 @@ class Astar {
 		return this.grid.tiles[this.grid.coordsToIndex(node)].btype;
 	}
 
-	checkNeighbors(list, useDiagonal) {
-
-		let removeList = [];
-
+	checkNeighbors(neighbors, useDiagonal) {
 		// If that neighbor is empty or an obstacle, mark it for removal
-		for (let i = 0; i < list.length; i++) {
-			if (!list[i] || this.btypeOfNode(list[i]) === blockType.wall) {
+		let removeList = [];
+		for (let i = 0; i < neighbors.length; i++) {
+			if (!neighbors[i] || this.btypeOfNode(neighbors[i]) === blockType.wall) {
 				removeList[i] = true;
 			}
 			else {
 				removeList[i] = false;
 			}
 
-			if (list[i].x === 14 && list[i].y === 0) {
+			// TODO: Remove
+			if (neighbors[i].x === 19 && neighbors[i].y === 0) {
 				console.log("hello");
-				console.log(list[3]);
+				console.log(neighbors[3]);
 			}
 		}
 
-
-
 		if (useDiagonal) {
 			// Check cases where diagonal movement wouldnt make sense
-			if (this.btypeOfNode(list[2]) === blockType.wall || this.btypeOfNode(list[0]) === blockType.wall) {
+			if (this.btypeOfNode(neighbors[2]) === blockType.wall || this.btypeOfNode(neighbors[0]) === blockType.wall) {
 				removeList[4] = true;
 			}
-			if (this.btypeOfNode(list[0]) === blockType.wall || this.btypeOfNode(list[3]) === blockType.wall) {
+			if (this.btypeOfNode(neighbors[0]) === blockType.wall || this.btypeOfNode(neighbors[3]) === blockType.wall) {
 				removeList[7] = true;
 			}
-			if (this.btypeOfNode(list[3]) === blockType.wall || this.btypeOfNode(list[1]) === blockType.wall) {
+			if (this.btypeOfNode(neighbors[3]) === blockType.wall || this.btypeOfNode(neighbors[1]) === blockType.wall) {
 				removeList[6] = true;
 			}
-			if (this.btypeOfNode(list[1]) === blockType.wall || this.btypeOfNode(list[2]) === blockType.wall) {
+			if (this.btypeOfNode(neighbors[1]) === blockType.wall || this.btypeOfNode(neighbors[2]) === blockType.wall) {
 				removeList[5] = true;
 			}
 		}
 
+		// Remove marked neighbors
 		let returnList = [];
-
-		for (let i = 0; i < list.length; i++) {
+		for (let i = 0; i < neighbors.length; i++) {
 			if (removeList[i] === true) {
 				continue;
 			}
 			else {
-				returnList.push(list[i]);
+				returnList.push(neighbors[i]);
 			}
 		}
-
 		return returnList;
 	}
 
@@ -423,14 +418,15 @@ class Astar {
 				}
 			} //for
 
-			//this.drawOpenList(openList);
+			//this.showOpenList(openList);
 
 			//delay(10);
 		} //while
 		
 		if (this.options.debugPathfinding) {
-			this.drawOpenList(openList);
+			this.showOpenList(openList);
 		}
+
 		let path = [];
 
 		if (endNode) {
@@ -443,17 +439,11 @@ class Astar {
 			path.reverse();
 		}
 
-		if (path.length > 0) {
-			this.drawPath(path);
-		}
-
-		this.drawEndpoints(startCoords, targetCoords);
-
 		return path;
 	} //findPath()
-}
+} //class AstarFinder
 
-class GridConverter {
+class CoordConvertor {
 	constructor(aGridSize, canvas) {
 		this.gridSize = aGridSize;
 		this.canvas = canvas;
@@ -479,9 +469,9 @@ class GridConverter {
 
 		return {x, y};
 	}
-} //GridConvertor
+} //class CoordConvertor
 
-class GridUI {
+class UIEventsHandler {
 	constructor(grid, convertor, onChangeCallback) {
 		this.grid = grid;
 		this.convertor = convertor;
@@ -490,16 +480,22 @@ class GridUI {
 		this.currentBlockType = blockType.wall;
 	}
 
+	initEventHandlers(canvas) {
+		canvas.addEventListener("mousedown", this.mouseDown.bind(this), false);
+		canvas.addEventListener("mousemove", this.mouseMove.bind(this), false);
+		canvas.addEventListener("mouseup", this.mouseUp.bind(this), false);
+	}
+
 	mouseDown(event) {
 		this.isDrawing = true;
-		this.draw(event);
+		this.updateBlock(event);
 	}
 	
 	mouseMove(event) {
-		this.draw(event);
+		this.updateBlock(event);
 	}
 
-	draw(event) {
+	updateBlock(event) {
 		if (!this.isDrawing) {
 			return;
 		}
@@ -520,24 +516,16 @@ class GridUI {
 	mouseUp() {
 		this.isDrawing = false;
 	}
+} //class UIEventsHandler
 
-	initEventHandlers(canvas) {
-		canvas.addEventListener("mousedown", this.mouseDown.bind(this), false);
-		canvas.addEventListener("mousemove", this.mouseMove.bind(this), false);
-		canvas.addEventListener("mouseup", this.mouseUp.bind(this), false);
-	}
-} //GridUI
-
-
-
-class UIUI {
+class AstarManager {
 	/*
 	var canvas;
 	var ctx;
 
 	var grid; // Two dimensional array of ints
 	var convertor;
-	var astar; // Pathfinding object
+	var finder; // Pathfinding object
 	var ui;
 	*/
 
@@ -555,37 +543,51 @@ class UIUI {
 				this.grid.saveGrid();
 				this.renderGrid();
 			},
-			find: () => {
-				let startCoords = {x: 1, y: 1};
-				let targetCoords = {x: this.grid.gridSize - 2, y: this.grid.gridSize - 2};
-				this.grid.resetGrid();
-				this.astar.findPath(startCoords, targetCoords);
-			},
+			find: this.find.bind(this),
 			useDiagonal: true,
 			heuristicWeight: 10,
-			debugPathfinding: false
+			debugPathfinding: false,
+			showCoordinates: false
 		};
 	
-		this.convertor = new GridConverter(this.grid.gridSize, this.canvas);
-		this.astar = new Astar(this.grid, this.convertor, this.ctx, this.controls);
+		this.convertor = new CoordConvertor(this.grid.gridSize, this.canvas);
+		this.finder = new AstarFinder(this.grid, this.controls);
+		this.renderer = new AstarCanvas(this.convertor, this.ctx);
 	
-		this.ui = new GridUI(this.grid, this.convertor, this.changeBlock.bind(this));
+		this.ui = new UIEventsHandler(this.grid, this.convertor, this.changeBlock.bind(this));
 		this.ui.initEventHandlers(this.canvas);
 	
 		this.renderGrid();
 	}
 
+	find() {
+		let startCoords = {x: 1, y: 1};
+		let targetCoords = {x: this.grid.gridSize - 2, y: this.grid.gridSize - 2};
+		this.grid.resetGrid();
+		
+		let path = this.finder.findPath(startCoords, targetCoords);
+		if (path.length > 0) {
+			this.renderGrid();
+			this.renderer.drawPath(path);
+		}
+		this.renderer.drawEndpoints(startCoords, targetCoords);
+	}
+
 	initGUI(gui, folderName) {
 		let f = gui.addFolder(folderName);
-		let c = f.add(this.controls, 'type', blockType);
-		c.onChange((value) => {
+		f.add(this.controls, 'type', blockType).onChange((value) => {
 			this.ui.currentBlockType = typeof value === "string" ? parseInt(value) : value;
 		});
 		f.add(this.controls, 'find');
 		// f.add(this.controls, 'clear');
-		f.add(this.controls, 'useDiagonal');
-		f.add(this.controls, 'heuristicWeight');
-		f.add(this.controls, 'debugPathfinding');
+
+		let p = f.addFolder("Pathfinding Options");
+		p.add(this.controls, 'useDiagonal');
+		p.add(this.controls, 'heuristicWeight');
+
+		let d = f.addFolder("Debug Options");
+		d.add(this.controls, 'debugPathfinding');
+		d.add(this.controls, 'showCoordinates');
 		f.open();
 	}
 
@@ -641,24 +643,24 @@ class UIUI {
 				this.ctx.lineWidth = 0.5;
 				this.ctx.strokeRect(x * blkSz, y * blkSz, blkSz, blkSz);
 	
-				// Render Astar information
-				if (curTile.h) {
-					this.ctx.font = "12px Arial";
-					this.ctx.fillStyle = "white";
-					this.ctx.fillText("h: " + curValue, x * blkSz + blkSz * 0.1, y * blkSz + blkSz * 0.25);
+				// Render text information
+				if (this.controls.showCoordinates) {
+					this.ctx.font = "6px Arial";
+					this.ctx.fillStyle = "rgba(255, 255, 255, 127)";
+					this.ctx.fillText(x + "," + y, x * blkSz + blkSz * 0.1, y * blkSz + blkSz * 0.25 + 1);
 				}
 			}
 		}
 	} //renderGrid()
-}
+} //class AstarManager
 
 function onDOMLoaded() {
 	let datGUI = new dat.GUI();
 
-	let ui = new UIUI("canvas1", "grid1");
+	let ui = new AstarManager("canvas1", "grid1");
 	ui.initGUI(datGUI, "Grid 1");
 
-	let ui2 = new UIUI("canvas2", "grid1");
+	let ui2 = new AstarManager("canvas2", "grid1");
 	ui2.initGUI(datGUI, "Grid 2");
 }
 
