@@ -1,0 +1,9 @@
+#canvas {
+	border-style: solid;
+	border-color: rgb(255, 200, 0);
+	border-width: 8px;
+}
+
+body {
+	margin: 0;
+}
