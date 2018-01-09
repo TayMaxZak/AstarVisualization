@@ -48,13 +48,13 @@ class Grid {
 
 	loadGrid() {
 		let tiles = localStorage.getItem(this.saveName);
-		
+
 		try {
 			if (tiles) {
 				tiles = JSON.parse(tiles);
-				if (tiles.length !== this.gridSize * this.gridSize) {
-					gridSize = Math.round(Math.sqrt(tiles.length));
-				}
+				// if (tiles.length !== this.gridSize * this.gridSize) {
+				// 	gridSize = Math.round(Math.sqrt(tiles.length));
+				// }
 				this.tiles = tiles;
 			}
 		} catch (err) {
@@ -75,7 +75,7 @@ class Grid {
 		}
 	}
 
-	resetGrid() {
+	clearDebug() {
 		for (var x = 0; x < this.gridSize; x++) {
 			for (var y = 0; y < this.gridSize; y++) {
 				if (this.tiles[x + y * this.gridSize].btype !== blockType.wall) {
@@ -83,12 +83,20 @@ class Grid {
 				}
 			}
 		}
-	} //resetGrid()
+	} //clearDebug()
 
 	clearGrid() {
 		for (var x = 0; x < this.gridSize; x++) {
 			for (var y = 0; y < this.gridSize; y++) {
 				this.tiles[x + y * this.gridSize].btype = blockType.empty;
+			}
+		}
+	}
+
+	generateGrid(density, generator) {
+		for (var x = 0; x < this.gridSize; x++) {
+			for (var y = 0; y < this.gridSize; y++) {
+				this.tiles[x + y * this.gridSize].btype = Math.random() < density ? blockType.wall : blockType.empty;
 			}
 		}
 	}
@@ -128,14 +136,14 @@ class Grid {
 			list.push({x: x - 1, y: y});
 		}
 		else {
-			list.push();
+			list.push(undefined);
 		}
 
 		if (x + 1 < this.gridSize) {
 			list.push({x: x + 1, y: y});
 		}
 		else {
-			list.push();
+			list.push(undefined);
 		}
 
 		// Vertical neighbors
@@ -143,14 +151,14 @@ class Grid {
 			list.push({x: x, y: y - 1});
 		}
 		else {
-			list.push();
+			list.push(undefined);
 		}
 
 		if (y + 1 < this.gridSize) {
 			list.push({x: x, y: y + 1});
 		}
 		else {
-			list.push();
+			list.push(undefined);
 		}
 
 		if (useDiagonal) {
@@ -159,28 +167,28 @@ class Grid {
 				list.push({x: x - 1, y: y - 1});
 			}
 			else {
-				list.push();
+				list.push(undefined);
 			}
 
 			if (x + 1 < this.gridSize && y - 1 >= 0) {
 				list.push({x: x + 1, y: y - 1});
 			}
 			else {
-				list.push();
+				list.push(undefined);
 			}
 
 			if (x + 1 < this.gridSize && y + 1 < this.gridSize) {
 				list.push({x: x + 1, y: y + 1});
 			}
 			else {
-				list.push();
+				list.push(undefined);
 			}
 
 			if (x - 1 >= 0 && y + 1 < this.gridSize ) {
 				list.push({x: x - 1, y: y + 1});
 			}
 			else {
-				list.push();
+				list.push(undefined);
 			}
 
 			// Check for situations where diagonal woudlnt make sense
@@ -336,12 +344,6 @@ class AstarFinder {
 			else {
 				removeList[i] = false;
 			}
-
-			// TODO: Remove
-			if (neighbors[i].x === 19 && neighbors[i].y === 0) {
-				console.log("hello");
-				console.log(neighbors[3]);
-			}
 		}
 
 		if (useDiagonal) {
@@ -389,6 +391,7 @@ class AstarFinder {
 			let current = openList[currentIndex];
 
 			if (current.closed) {
+				// Shouldnt happen
 				break;
 			}
 			current.closed = true;
@@ -453,8 +456,8 @@ class AstarFinder {
 } //class AstarFinder
 
 class CoordConvertor {
-	constructor(aGridSize, canvas) {
-		this.gridSize = aGridSize;
+	constructor(gridSize, canvas) {
+		this.gridSize = gridSize;
 		this.canvas = canvas;
 		this.ctxDim = this.calcCtxDim();
 		this.blockSize = this.calcBlockSize();
@@ -481,12 +484,23 @@ class CoordConvertor {
 } //class CoordConvertor
 
 class UIEventsHandler {
-	constructor(grid, convertor, onChangeCallback) {
+	constructor(grid, convertor, options, onChangeCallback) {
 		this.grid = grid;
 		this.convertor = convertor;
+		this.options = options;
 		this.onChangeCallback = onChangeCallback;
 		this.isDrawing = false;
+		this.isDragging = 0; // 0 = no, 1 = start, 2 = end
 		this.currentBlockType = blockType.wall;
+	}
+
+	findCoords(event) {
+		let ctxDim = this.convertor.ctxDim;
+	
+		let x = event.offsetX;
+		let y = event.offsetY;
+	
+		return this.convertor.mouseToGrid(x, y);
 	}
 
 	initEventHandlers(canvas) {
@@ -496,25 +510,59 @@ class UIEventsHandler {
 	}
 
 	mouseDown(event) {
-		this.isDrawing = true;
-		this.updateBlock(event);
+		this.handleMouseDown(event);
 	}
 	
 	mouseMove(event) {
-		this.updateBlock(event);
+		this.handleMouseMove(event);
 	}
 
-	updateBlock(event) {
+	equalCoords(a, b) {
+		return a.x === b.x && a.y === b.y;
+	}
+
+	handleMouseMove(event) {
+		let coords = this.findCoords(event);
+		if (this.isDrawing) { // Are we drawing blocks right now?
+			if (!this.equalCoords(coords, this.options.startPoint) && !this.equalCoords(coords, this.options.endPoint)) {
+				this.updateBlock(coords);
+			}
+		} else if (this.isDragging === 1) {// Are we dragging start point around?
+			if (!this.equalCoords(coords, this.options.endPoint)) { // Dont drag start on top of end
+				this.updateEndpoints(coords, this.options.endPoint);
+			}
+		} else if (this.isDragging === 2) {// Are we dragging end point around?
+			if (!this.equalCoords(coords, this.options.startPoint)) { // Dont drag start on top of end
+				this.updateEndpoints(this.options.startPoint, coords);
+			}
+		}
+	} //handleMouseMove()
+
+	handleMouseDown(event) {
+		let coords = this.findCoords(event);
+		if (this.equalCoords(coords, this.options.startPoint)) {
+			this.isDragging = 1;
+		}
+		else if (this.equalCoords(coords, this.options.endPoint)) {
+			this.isDragging = 2;
+		}
+		else {
+			this.isDragging = 0;
+			this.isDrawing = true;
+			this.updateBlock(coords);
+		}
+	}
+
+	updateEndpoints(startCoords, endCoords) {
+		this.options.startPoint = startCoords;
+		this.options.endPoint = endCoords;
+		this.onChangeCallback && this.onChangeCallback(false, true);
+	}
+
+	updateBlock(coords) {
 		if (!this.isDrawing) {
 			return;
 		}
-	
-		let ctxDim = this.convertor.ctxDim;
-	
-		let x = event.offsetX;
-		let y = event.offsetY;
-	
-		let coords = this.convertor.mouseToGrid(x, y);
 	
 		let n = this.currentBlockType;
 	
@@ -524,6 +572,7 @@ class UIEventsHandler {
 	
 	mouseUp() {
 		this.isDrawing = false;
+		this.isDragging = 0;
 	}
 } //class UIEventsHandler
 
@@ -548,10 +597,21 @@ class AstarManager {
 		this.options = {
 			type: blockType.wall,
 			clear: () => {
+				
 				this.grid.clearGrid();
 				this.grid.saveGrid();
 				this.renderGrid();
 			},
+			generator: 0,
+			density: 0.3,
+			generate: () => {
+				this.grid.generateGrid(this.options.density, this.options.generator);
+				this.grid.tiles[this.options.startPoint.x + this.options.startPoint.y * this.grid.gridSize].btype = blockType.empty;
+				this.grid.tiles[this.options.endPoint.x + this.options.endPoint.y * this.grid.gridSize].btype = blockType.empty;
+				this.renderGrid();
+			},
+			startPoint: {x: 1, y: 1},
+			endPoint: {x: this.grid.gridSize - 2, y: this.grid.gridSize - 2},
 			find: this.find.bind(this),
 			useDiagonal: true,
 			heuristicWeight: 10,
@@ -564,23 +624,21 @@ class AstarManager {
 		this.finder = new AstarFinder(this.grid, this.options);
 		this.renderer = new AstarCanvas(this.convertor, this.ctx);
 	
-		this.uiHandler = new UIEventsHandler(this.grid, this.convertor, this.changeBlock.bind(this));
+		this.uiHandler = new UIEventsHandler(this.grid, this.convertor, this.options, this.changeBlock.bind(this));
 		this.uiHandler.initEventHandlers(this.canvas);
 	
 		this.renderGrid();
 	}
 
 	find() {
-		let startCoords = {x: 1, y: 1};
-		let targetCoords = {x: this.grid.gridSize - 2, y: this.grid.gridSize - 2};
-		this.grid.resetGrid();
+		this.grid.clearDebug();
 		
-		let path = this.finder.findPath(startCoords, targetCoords);
+		let path = this.finder.findPath({x: this.options.startPoint.x, y: this.options.startPoint.y},
+			{x: this.options.endPoint.x, y: this.options.endPoint.y});
 		if (path.length > 0) {
 			this.renderGrid();
 			this.renderer.drawPath(path);
 		}
-		this.renderer.drawEndpoints(startCoords, targetCoords);
 	}
 
 	initGUI(gui, folderName) {
@@ -589,7 +647,14 @@ class AstarManager {
 			this.uiHandler.currentBlockType = typeof value === "string" ? parseInt(value) : value;
 		});
 		f.add(this.options, 'find');
-		f.add(this.options, 'clear');
+
+
+		let g = f.addFolder("Generation");
+		g.add(this.options, 'density');
+		g.add(this.options, 'generator')
+		g.add(this.options, 'generate');
+		g.add(this.options, 'clear');
+		g.open();
 
 		let p = f.addFolder("Pathfinding Options");
 		p.add(this.options, 'useDiagonal');
@@ -604,12 +669,16 @@ class AstarManager {
 		f.open();
 	}
 
-	changeBlock(save) {
+	changeBlock(save, startEnd) {
 		if (save) {
 			this.grid.saveGrid();
 		}
 		
 		this.renderGrid();
+
+		if (startEnd) {
+			this.find();
+		}
 	}
 
 	renderGrid() {
@@ -663,7 +732,10 @@ class AstarManager {
 					this.ctx.fillText(x + "," + y, x * blkSz + blkSz * 0.1, y * blkSz + blkSz * 0.25 + 1);
 				}
 			}
-		}
+		} //grid stuff
+
+		this.renderer.drawEndpoints(this.options.startPoint, this.options.endPoint);
+
 	} //renderGrid()
 } //class AstarManager
 
